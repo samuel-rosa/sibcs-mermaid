@@ -1,0 +1,82 @@
+---
+pagetitle: "SiBCS 2018"
+output: html_document
+---
+
+```{r, echo=FALSE}
+# Download database
+sibcs <- read.table(
+  paste0("https://docs.google.com/spreadsheets/d/e/2PACX-1vTJZBM-i_6HPDN9kVWVZvCcn1XyJ03ywT7zy-",
+         "llksaYTEA879K9_kXlxgYgq56l8A7llDqMN2lNWycZ/pub?output=tsv"),
+  header = TRUE, na.strings = "-", sep = "\t", stringsAsFactors = FALSE)
+n_links <- nrow(sibcs) # the number of links is equal to the number of rows
+sibcs[["node_decision"]] <- ifelse(
+  test = is.na(sibcs[["node_decision"]]), 
+  yes = "-->", 
+  no = paste0("-->|", sibcs[["node_decision"]], "|"))
+# Process node text
+# We start by adding line breaks
+target_text <- strsplit(sibcs[["target_text"]], split = " ")
+n_text <- lapply(target_text, nchar)
+i <- 1
+for (i in seq_along(n_text)) {
+  if (sum(n_text[[i]]) < 45) {
+    line1 <- which(cumsum(n_text[[i]]) < 11)
+    line2 <- which(cumsum(n_text[[i]][-line1]) < 15)
+    line3 <- which(cumsum(n_text[[i]][-line1][-line2]) < 15)
+    line4 <- which(cumsum(n_text[[i]][-line1][-line2][-line3]) > 0)
+  } else {
+    line1 <- which(cumsum(n_text[[i]]) < 11)
+    line2 <- which(cumsum(n_text[[i]][-line1]) < 15)
+    line3 <- which(cumsum(n_text[[i]][-line1][-line2]) < 19)
+    line4 <- which(cumsum(n_text[[i]][-line1][-line2][-line3]) < 19)
+    line5 <- which(cumsum(n_text[[i]][-line1][-line2][-line3][-line4]) < 15)
+    line6 <- which(cumsum(n_text[[i]][-line1][-line2][-line3][-line4][-line5]) > 0)
+  }
+  target_text[[i]] <- paste0(
+    paste0(target_text[[i]][line1], collapse = " "),
+    "</br>",
+    paste0(target_text[[i]][-line1][line2], collapse = " "),
+    "</br>",
+    paste0(target_text[[i]][-line1][-line2][line3], collapse = " "),
+    "</br>",
+    paste0(na.exclude(target_text[[i]][-line1][-line2][-line3][line4]), collapse = " "),
+    "</br>",
+    paste0(na.exclude(target_text[[i]][-line1][-line2][-line3][-line4][line5]), collapse = " "),
+    "</br>",
+    paste0(
+      na.exclude(target_text[[i]][-line1][-line2][-line3][-line4][-line5][line6]), collapse = " ")
+  )
+}
+sibcs[["target_text"]] <- as.character(unlist(target_text))
+sibcs[["target_text"]] <- gsub("</br></br>", "</br>", sibcs[["target_text"]])
+sibcs[["target_text"]] <- ifelse(
+  test = sibcs[["target_type"]] == "criterio",
+  yes = paste0('{"<center>', sibcs[["target_text"]], '</center>"}'),
+  no = paste0('("<center>', sibcs[["target_text"]], '</center>")')
+)
+sibcs <- apply(sibcs, 1, function(x) {
+  paste0(x[c("node_id", "node_decision", "target_id", "target_text")], collapse = "")
+})
+sibcs <- paste0(sibcs, collapse = ";")
+sibcs <- paste0('graph TB;DADOS["Dados de um</br>perfil de solo"];', sibcs, collapse = ";")
+sibcs <- paste0(
+  sibcs, "; ",
+  paste0(
+    "linkStyle ",
+    seq(1, n_links - 1, by = 2),
+    " stroke:mediumseagreen,stroke-width:2px;",
+    collapse = ""),
+  paste0(
+    "linkStyle ",
+    seq(2, n_links, by = 2),
+    " stroke:mediumpurple,stroke-width:2px;",
+    collapse = "")
+)
+writeLines(sibcs, con = "../res/sibcs.mmd")
+```
+
+```{r, echo=FALSE}
+DiagrammeR::mermaid(sibcs)
+```
+
